@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Wissam game 2</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: silver;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+    #counters {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div id="counters">
+    <div id="timeCounter">Time: 0s</div>
+    <div id="deathCounter">Deaths: 0</div>
+  </div>
+  <canvas id="gameCanvas"></canvas>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const context = canvas.getContext('2d');
+    const timeCounter = document.getElementById('timeCounter');
+    const deathCounter = document.getElementById('deathCounter');
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const player = {
+      radius: 25,
+      x: 100,
+      y: canvas.height - 100,
+      speed: 5,
+      dx: 0,
+      dy: 0,
+      gravity: 0.8,
+      jumpPower: -15,
+      isJumping: false,
+      onGround: false
+    };
+
+    const keys = {
+      right: false,
+      left: false,
+      up: false
+    };
+
+    let obstacles = [];
+    let spikes = [];
+    let deathCount = 0;
+
+    let startTime;
+    let elapsedTime = 0;
+    let running = false;
+
+    function createObstacles() {
+      for (let i = 0; i < 10; i++) {
+        let height = i === 0 ? 70 : Math.floor(Math.random() * 150) + 50;
+        let width = Math.floor(Math.random() * 50) + 20;
+        let x = canvas.width + (i * 200);
+        let y = canvas.height - height;
+        obstacles.push({ x: x, y: y, width: width, height: height });
+
+        for (let j = x + width; j < x + 200; j += 25) {
+          spikes.push({ x: j, y: canvas.height, width: 25, height: 10 });
+        }
+      }
+    }
+
+    function drawPlayer() {
+      context.fillStyle = '#00008B';  // Dark blue color for the player
+      context.beginPath();
+      context.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+      context.fill();
+    }
+
+    function drawObstacles() {
+      context.fillStyle = 'black';
+      obstacles.forEach(obstacle => {
+        context.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+      });
+    }
+
+    function drawSpikes() {
+      context.fillStyle = 'red';
+      spikes.forEach(spike => {
+        context.beginPath();
+        context.moveTo(spike.x, spike.y);
+        context.lineTo(spike.x + spike.width / 2, spike.y - spike.height);
+        context.lineTo(spike.x + spike.width, spike.y);
+        context.fill();
+      });
+    }
+
+    function clear() {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function newPos() {
+      player.dy += player.gravity;
+      player.y += player.dy;
+
+      if (player.y + player.radius > canvas.height) {
+        player.y = canvas.height - player.radius;
+        player.dy = 0;
+        player.isJumping = false;
+        player.onGround = true;
+      }
+
+      obstacles.forEach(obstacle => {
+        if (player.x + player.radius > obstacle.x &&
+            player.x - player.radius < obstacle.x + obstacle.width &&
+            player.y + player.radius > obstacle.y &&
+            player.y + player.radius < obstacle.y + obstacle.height &&
+            player.dy >= 0) {
+          player.y = obstacle.y - player.radius;
+          player.dy = 0;
+          player.isJumping = false;
+          player.onGround = true;
+        }
+        obstacle.x -= player.dx;
+      });
+
+      spikes.forEach(spike => {
+        if (player.x + player.radius > spike.x &&
+            player.x - player.radius < spike.x + spike.width &&
+            player.y + player.radius > spike.y - spike.height / 2) {
+          resetGame();
+        }
+        spike.x -= player.dx;
+      });
+
+      obstacles = obstacles.filter(obstacle => obstacle.x + obstacle.width > 0);
+      spikes = spikes.filter(spike => spike.x + spike.width > 0);
+
+      if (obstacles.length < 10) {
+        createObstacles();
+      }
+    }
+
+    function resetGame() {
+      player.x = 100;
+      player.y = canvas.height - 100;
+      player.dx = 0;
+      player.dy = 0;
+      deathCount++;
+      deathCounter.innerText = 'Deaths: ' + deathCount;
+      obstacles = [];
+      spikes = [];
+      createObstacles();
+      startTime = new Date();
+      elapsedTime = 0;
+      timeCounter.innerText = 'Time: 0s';
+    }
+
+    function update() {
+      clear();
+      drawPlayer();
+      drawObstacles();
+      drawSpikes();
+      newPos();
+
+      if (running) {
+        elapsedTime = Math.floor((new Date() - startTime) / 1000);
+        timeCounter.innerText = 'Time: ' + elapsedTime + 's';
+      }
+
+      requestAnimationFrame(update);
+    }
+
+    function moveRight() {
+      player.dx = player.speed;
+      if (!running) {
+        startTime = new Date();
+        running = true;
+      }
+    }
+
+    function moveLeft() {
+      player.dx = -player.speed;
+      if (!running) {
+        startTime = new Date();
+        running = true;
+      }
+    }
+
+    function jump() {
+      if (!player.isJumping && player.onGround) {
+        player.dy = player.jumpPower;
+        player.isJumping = true;
+        player.onGround = false;
+        if (!running) {
+          startTime = new Date();
+          running = true;
+        }
+      }
+    }
+
+    function keyDown(e) {
+      if (e.key === 'ArrowRight' || e.key === 'Right') {
+        keys.right = true;
+        moveRight();
+      } else if (e.key === 'ArrowLeft' || e.key === 'Left') {
+        keys.left = true;
+        moveLeft();
+      } else if (e.key === 'ArrowUp' || e.key === 'Up') {
+        keys.up = true;
+        jump();
+      }
+    }
+
+    function keyUp(e) {
+      if (e.key === 'ArrowRight' || e.key === 'Right') {
+        keys.right = false;
+        player.dx = 0;
+      } else if (e.key === 'ArrowLeft' || e.key === 'Left') {
+        keys.left = false;
+        player.dx = 0;
+      } else if (e.key === 'ArrowUp' || e.key === 'Up') {
+        keys.up = false;
+      }
+    }
+
+    document.addEventListener('keydown', keyDown);
+    document.addEventListener('keyup', keyUp);
+
+    createObstacles();
+    update();
+  </script>
+</body>
+</html>
